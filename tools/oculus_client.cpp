@@ -30,6 +30,19 @@ using liboculus::SonarStatus;
 using liboculus::StatusRx;
 // using liboculus::SonarPlayer;
 
+#pragma pack(1)  
+// That pragma is not optimize but it makes sure that the data will sent as expected
+// need to check compatibility to records...
+struct pipeDataPack{
+    int     nBeams;
+    int     nRanges;
+    float   range;
+    float   gain;
+    bool    is16Bit;
+    int     dataSize;
+    unsigned char*   sonarData;
+};
+
 int playbackSonarFile(const std::string &filename, ofstream &output,
                       int stopAfter = -1);
 
@@ -44,8 +57,9 @@ void signalHandler(int signo) {
   doStop = true;
 }
 
+
 double mean_image_intensity( const liboculus::ImageData &imageData ) {
-  double f=0;
+  double f=0; 
   for ( int r = 0; r < imageData.nRanges(); ++r ) {
     for ( int a = 0; a < imageData.nBeams(); ++a ) {
       f += imageData.at_uint32(a, r);
@@ -57,6 +71,7 @@ double mean_image_intensity( const liboculus::ImageData &imageData ) {
 
 
 int main(int argc, char **argv) {
+    
   libg3logger::G3Logger logger("ocClient");
 
   CLI::App app{"Simple Oculus Sonar app"};
@@ -72,6 +87,10 @@ int main(int argc, char **argv) {
   string outputFilename("");
   app.add_option("-o,--output", outputFilename,
                  "Saves raw sonar data to specified file.");
+  
+  string outPipeFilename("");               
+  app.add_option("-p,--outPipe", outPipeFilename,
+                 "send sonar raw data to pipe, supports 8/16bit only.");
 
   // Playback currently not working
   // string inputFilename("");
@@ -82,6 +101,9 @@ int main(int argc, char **argv) {
 
   int bitDepth(8);
   app.add_option("-b,--bits", bitDepth, "Bit depth oof data (8,16,32)");
+  
+  unsigned int  sonarRate = 0;
+  app.add_option("-f,--fps", sonarRate, "set sonar rate, default 10Hz, (0->10Hz, 1->15Hz, 2->40Hz, 3->5Hz, 4->2Hz,5->0Hz)");
 
   int stopAfter = -1;
   app.add_option("-n,--frames", stopAfter, "Stop after (n) frames.");
@@ -110,6 +132,27 @@ int main(int argc, char **argv) {
   }
 
   ofstream output;
+  
+  // bRov 
+  ofstream outPipe;
+  pipeDataPack* myDataPack;
+  myDataPack = new(pipeDataPack);
+  bool is16Bit = false;
+  //printf("size of pipeData struct: %ld\n", sizeof(pipeDataPack));
+  
+  
+  if (!outPipeFilename.empty()) {
+    LOG(DEBUG) << "Opening output pipe " << outPipeFilename;
+    outPipe.open(outPipeFilename, ios_base::binary | ios_base::out);
+
+    if (!outPipe.is_open()) {
+      LOG(WARNING) << "Unable to open " << outPipeFilename << " for output.";
+      exit(-1);
+    }
+  }
+  //
+  
+  
 
   if (!outputFilename.empty()) {
     LOG(DEBUG) << "Opening output file " << outputFilename;
@@ -126,6 +169,8 @@ int main(int argc, char **argv) {
   //   playbackSonarFile(inputFilename, output, stopAfter);
   //   return 0;
   // }
+  
+  
 
   int count = 0;
 
@@ -134,8 +179,13 @@ int main(int argc, char **argv) {
   LOG(DEBUG) << "Starting loop";
 
   SonarConfiguration config;
-  config.setPingRate(pingRateNormal);
-
+  
+  
+  // bRov
+  //config.setPingRate(pingRateNormal);
+  config.setPingRate((PingRateType)sonarRate);
+  //
+  
   LOG(INFO) << "Setting range to " << range;
   config.setRange(range);
 
@@ -145,6 +195,7 @@ int main(int argc, char **argv) {
   if (bitDepth == 8) {
     config.setDataSize(dataSize8Bit);
   } else if (bitDepth == 16) {
+    is16Bit = true;  
     config.setDataSize(dataSize16Bit);
   } else if (bitDepth == 32) {
     config.sendGain().setDataSize(dataSize32Bit);
@@ -174,8 +225,9 @@ int main(int argc, char **argv) {
               reinterpret_cast<const char *>(ping.buffer()->data());
           output.write(cdata, ping.buffer()->size());
         }
-
+        
         LOG(DEBUG) << "Average intensity: " << mean_image_intensity(ping.image());
+    	//printf("bla 1\n");
 
         count++;
         if ((stopAfter > 0) && (count >= stopAfter))
@@ -203,7 +255,27 @@ int main(int argc, char **argv) {
           output.write(cdata, ping.buffer()->size());
         }
 
-        LOG(DEBUG) << "Average intensity: " << mean_image_intensity(ping.image());
+        //LOG(DEBUG) << "Average intensity: " << mean_image_intensity(ping.image());
+        // bRov      
+        if (outPipe.is_open()) {
+              myDataPack->nBeams      = ping.image().nBeams();
+              myDataPack->is16Bit     = is16Bit;
+              myDataPack->nRanges     = ping.image().nRanges();
+              myDataPack->range       = range;
+              myDataPack->gain        = gain;
+              //myDataPack->dataSize    = ping.image().getImageSize();
+              myDataPack->sonarData   = ping.image().getSonarData();
+        
+              const char* cdata = reinterpret_cast<const char*>(myDataPack);
+              outPipe.write(cdata, sizeof(pipeDataPack));
+              
+              cdata = reinterpret_cast<const char*>(myDataPack->sonarData);
+              outPipe.write(cdata, ping.image().getImageSize());
+          
+        }
+        //
+        
+    	//printf("bla 2\n");
 
         count++;
         if ((stopAfter > 0) && (count >= stopAfter))
@@ -249,6 +321,10 @@ int main(int argc, char **argv) {
     output.close();
 
   LOG(INFO) << "At exit";
+  
+  //bRov
+  delete(myDataPack);
+  //
 
   return 0;
 }

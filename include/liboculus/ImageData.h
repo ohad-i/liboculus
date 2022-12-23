@@ -120,6 +120,10 @@ class ImageData {
 
     return 0;
   }
+  
+  uint8_t* getSonarData() const {return (uint8_t*)(_data + _offset);}
+  
+  uint32_t getImageSize() const {return _imageSize;}
 
  private:
   const uint8_t *_data;

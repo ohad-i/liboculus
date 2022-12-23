@@ -69,6 +69,41 @@ The `--output` format works for both live data, and datafiles
 specified with `--input`.  The generated files are raw binary
 streams of sonar packets, and can be opened by `oc_client`.
 
+
+---
+## new oc_client binary -
+### installation and usage
+
+after cloning:
+1. cd myOculus/liboculus-main/
+2. ./fips build
+3. To run the oculus client using pipe: 
+	1. create pipe using the following: mkfifo fifo.pipe at the location you want.
+	2. run the oculus client from fips-deploy/liboculus-main/linux-make-debug:
+	./oc_client --help to get to know all the flags:Simple Oculus Sonar app
+                    Usage: ./oc_client [OPTIONS] [ip]
+
+                    Positionals:
+                      ip TEXT                     IP address of sonar or "auto" to automatically detect.
+
+                    Options:
+                      -h,--help                   Print this help message and exit
+                      -v,--verbose                Additional output (use -vv for even more!)
+                      -o,--output TEXT            Saves raw sonar data to specified file.
+                      -p,--outPipe TEXT           send sonar raw data to pipe, supports 8/16bit only.
+                      -b,--bits INT               Bit depth oof data (8,16,32)
+                      -f,--fps UINT               set sonar rate, default 10Hz, (0->10Hz, 1->15Hz, 2->40Hz, 3->5Hz, 4->2Hz,5->0Hz)
+                      -n,--frames INT             Stop after (n) frames.
+                      -r,--range FLOAT            Range in meters
+                      -g,--gain FLOAT             Gain as a percentage (1-100)
+  
+  
+	3. run the parser.py from myOculus/ make sure it reads from the same pipe you configured the oculus-client.
+
+Have fun...
+
+
+
 ## Library Design
 
 See [oc_client](https://github.com/apl-ocean-engineering/liboculus/blob/main/tools/oculus_client.cpp) as a sample non-ROS client.   A typical client will have instances of two interface classes.  Both use Boost::Asio for network IO and must be given an [`boost::asio::io_context`](https://www.boost.org/doc/libs/1_79_0/doc/html/boost_asio/reference/io_context.html) on construction.

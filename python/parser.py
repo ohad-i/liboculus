@@ -4,6 +4,8 @@ import struct
 import argparse
 import time
 
+## python script shpuld run the oc_client app on the background and kill it on exit, so it should be a close package to hanle all sonar issues
+
 usageDescription = 'TBD'
 
 

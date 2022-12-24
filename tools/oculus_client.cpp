@@ -34,6 +34,7 @@ using liboculus::StatusRx;
 // That pragma is not optimize but it makes sure that the data will sent as expected
 // need to check compatibility to records...
 struct pipeDataPack{
+    short   syncWord = 0xadad;
     int     nBeams;
     int     nRanges;
     float   range;

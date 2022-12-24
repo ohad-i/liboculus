@@ -1,16 +1,41 @@
 import numpy as np
 import cv2
 import struct
+import argparse
+import time
 
-h = 256
-w = 704
-winName = 'input'
-#cv2.namedWindow(winName, 0)
+usageDescription = 'TBD'
+
+
+parser = argparse.ArgumentParser(description='bluepring oculus sonar interface, %s'%usageDescription, formatter_class=argparse.RawTextHelpFormatter)
+parser.add_argument('-r', '--recPath', default=None, help=' path to record folder')
+parser.add_argument('-p', '--inPipe', default=None, help=' path to pipe ')
+parser.add_argument('-s', '--showSonar', action='store_true', help='show raw sonar data')
+'''
+parser.add_argument('-s', '--skipFrame', type=int, default=-1, help='start of parsed frame, by frame counter not file index')
+parser.add_argument('-q', '--showVideo', action='store_false', help='quite run, if -q - parse only, no show')
+parser.add_argument('-f', '--freeRun', action='store_true', help='Not true realtime run')
+parser.add_argument('-H', '--highQuality', action='store_true', help='Parse also high quality')
+parser.add_argument('-V', '--saveAvi', action='store_true', help='quite run, if -V - create avi files')
+'''
+
+args = parser.parse_args()
+
+
+pipeFile = args.inPipe
+recPath = args.recPath
+showFlag = args.showSonar
+
+if showFlag:
+    winName = 'sonar'
+    cv2.namedWindow(winName, 0)
+
+tic = time.time()
 cnt = 0
 
 
 def syncMsg(fid):
-    syncWord = 0x4f53
+    syncWord = 0xadad
     msgCnt = 0
     data = struct.unpack('h', fid.read(2))[0]
     while data != syncWord:
@@ -37,8 +62,9 @@ def sync2Msg(fid):
 
 #with open('sonar_8m.oculus', 'rb') as fid:
 msgCnt = 0
-with open('out.bin', 'rb') as fid:
-    #import ipdb; ipdb.set_trace()
+with open(pipeFile, 'rb') as fid:
+    
+
     while True:
         ret = syncMsg(fid)
         data = fid.read(196)

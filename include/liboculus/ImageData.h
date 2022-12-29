@@ -72,6 +72,8 @@ class ImageData {
 
   uint16_t nRanges() const { return _numRanges; }
   uint16_t nBeams() const { return _numBeams; }
+  uint16_t offset() const { return _offset; }
+  uint16_t stride() const { return _stride; }
 
   uint8_t at_uint8(unsigned int beam, unsigned int rangeBin) const {
     CHECK(_dataSize == 1) << "This function can only handle 8-bit data, use at_uint16()";
@@ -104,7 +106,7 @@ class ImageData {
   uint32_t at_uint32(unsigned int beam, unsigned int rangeBin) const {
     if ((_data == nullptr) || (beam >= _numBeams)
           || (rangeBin >= _numRanges)) return 0;
-
+    
     if (_dataSize == 1) {
         return at_uint8(beam, rangeBin);
     } else if (_dataSize == 2) {

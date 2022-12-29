@@ -30,18 +30,20 @@ using liboculus::SonarStatus;
 using liboculus::StatusRx;
 // using liboculus::SonarPlayer;
 
+
 #pragma pack(1)  
 // That pragma is not optimize but it makes sure that the data will sent as expected
 // need to check compatibility to records...
 struct pipeDataPack{
-    short   syncWord = 0xadad;
-    int     nBeams;
-    int     nRanges;
-    float   range;
-    float   gain;
-    bool    is16Bit;
-    int     dataSize;
-    unsigned char*   sonarData;
+    unsigned short    syncWord = 0xadad;
+    unsigned short    nBeams;
+    unsigned short    nRanges;
+    float             range;
+    float             gain;
+    bool              is16Bit;
+    int               dataSize;
+    unsigned short    dataOffset;
+    //unsigned char*   sonarData;
 };
 
 int playbackSonarFile(const std::string &filename, ofstream &output,
@@ -56,6 +58,19 @@ void signalHandler(int signo) {
   if (_io_thread)
     _io_thread->stop();
   doStop = true;
+}
+
+int getSonarData( const liboculus::ImageData &imageData, char& sonarData ) {
+  int dataSize=0; 
+  
+  for ( int a = 0; a < imageData.nBeams(); ++a ) {
+      for ( int r = 0; r < imageData.nRanges(); ++r ) {
+      const size_t offset = r+a*imageData.nRanges();
+      *(&sonarData+offset) = imageData.at_uint32(a, r);
+      dataSize++;
+    }
+  }
+  return dataSize;
 }
 
 
@@ -139,6 +154,7 @@ int main(int argc, char **argv) {
   pipeDataPack* myDataPack;
   myDataPack = new(pipeDataPack);
   bool is16Bit = false;
+  char*  pipeData = NULL;
   //printf("size of pipeData struct: %ld\n", sizeof(pipeDataPack));
   
   
@@ -265,13 +281,25 @@ int main(int argc, char **argv) {
               myDataPack->range       = range;
               myDataPack->gain        = gain;
               //myDataPack->dataSize    = ping.image().getImageSize();
-              myDataPack->sonarData   = ping.image().getSonarData();
-        
-              const char* cdata = reinterpret_cast<const char*>(myDataPack);
-              outPipe.write(cdata, sizeof(pipeDataPack));
+              myDataPack->dataOffset  = ping.image().offset();
+              //myDataPack->sonarData   = ping.image().getSonarData();
+              printf("%d current %d stride %d\n", count, sizeof(pipeDataPack), ping.image().stride());
               
-              cdata = reinterpret_cast<const char*>(myDataPack->sonarData);
-              outPipe.write(cdata, ping.image().getImageSize());
+              if(pipeData == NULL)
+              {
+                pipeData = new char[ping.image().getImageSize()];
+                printf("data size %ld\n", sizeof(ping.image().getImageSize()));
+              }
+              
+              myDataPack->dataSize = getSonarData( ping.image(), (char&)*pipeData );
+              
+              const char *cdata = reinterpret_cast<const char *>(myDataPack);
+
+              outPipe.write(cdata, sizeof(pipeDataPack));
+              outPipe.flush();
+            
+              outPipe.write(pipeData, myDataPack->dataSize);
+              outPipe.flush();
           
         }
         //

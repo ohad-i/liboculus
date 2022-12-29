@@ -3,6 +3,7 @@ import cv2
 import struct
 import argparse
 import time
+from select import select
 
 ## python script shpuld run the oc_client app on the background and kill it on exit, so it should be a close package to hanle all sonar issues
 
@@ -35,69 +36,65 @@ if showFlag:
 tic = time.time()
 cnt = 0
 
+'''
+struct pipeDataPack{
+    unsigned short    syncWord = 0xadad;
+    unsigned short    nBeams;
+    unsigned short    nRanges;
+    float             range;
+    float             gain;
+    bool              is16Bit;
+    int               dataSize;
+    unsigned short    dataOffset;
+    //unsigned char*   sonarData;
+};
+'''
 
-def syncMsg(fid):
-    syncWord = 0xadad
+def readHeadrMsg(fid):
+    syncWord = 0xad
     msgCnt = 0
-    data = struct.unpack('h', fid.read(2))[0]
-    while data != syncWord:
-        data = struct.unpack('h', fid.read(2))[0]
-        msgCnt += 1
-        #print('in->', data, syncWord)
-        #import ipdb; ipdb.set_trace()
-    print('synced!, size=%d'%msgCnt )
-    return True
-
-
-def sync2Msg(fid):
-    syncWord = 2048
-    msgCnt = 0
-    data = struct.unpack('I', fid.read(4))[0]
-    print('-->', data)
-    while data != syncWord:
-        data = struct.unpack('I', fid.read(4))[0]
-        msgCnt += 4
-        #print('in->', data, syncWord)
-        #import ipdb; ipdb.set_trace()
-    print('synced2!, imgOffset=%d'%msgCnt )
-    return True
-
-#with open('sonar_8m.oculus', 'rb') as fid:
-msgCnt = 0
-with open(pipeFile, 'rb') as fid:
     
-
+    ret = {}
     while True:
-        ret = syncMsg(fid)
-        data = fid.read(196)
-        #ret = sync2Msg(fid)
-        #fid.read(1)
-        data = struct.unpack('iII', data[-12:])
-        print('data:', data)
-        '''
-        #data = struct.unpack('h', fid.read(2))[0]
-        #print('devId 17936: %d'%data)
-        #data = struct.unpack('h', fid.read(2))[0]
-        #print('devId 0: %d'%data)
+        socks = select([fid], [], [], 0.001)[0]
+        if len(socks)>0:
+            data = fid.read(21)
+            data = struct.unpack('<HHHff?iH', data)
+            ret['syncWord'] = data[0]
+            ret['nBeams'] = data[1]
+            ret['nRanges'] = data[2]
+            ret['range'] = data[3]
+            ret['gain'] = data[4]
+            ret['is16Bit'] = data[5]
+            ret['dataSize'] = data[6]
+            ret['offset'] = data[7]
+            #print(time.time(), '-->', ret)
+            return ret
+
+print(pipeFile)
+
+cnt = 0.0
+tic = time.time()
+
+with open(pipeFile, 'rb') as fid:
+    while True:
+        time.sleep(0.001)
+        ret = readHeadrMsg(fid)
+        dataOffset = ret['offset']*ret['nRanges']
         
-        #data = struct.unpack('h', fid.read(2))[0]
-        #print('msgId 0x23: %d'%data)
-
-        ttt = fid.read(2048)
-        data = fid.read(w*h)
-        cnt +=1 
-
-        data = np.frombuffer(data, dtype='uint8').reshape((w, h))
+        socks = select([fid], [], [], 0.001)
+        if len(socks)>0:
+            cnt += 1
+            sonarData = fid.read(ret['dataSize'])
+            
+            img = np.frombuffer(sonarData, dtype='uint8').reshape(ret['nBeams'], ret['nRanges'])
+            cv2.imshow('aa', img)
+            cv2.waitKey(1)
+            #import ipdb; ipdb.set_trace()
         
-        tmp = data+np.min(data)
-        im = data #(tmp/np.max(tmp))*255
-        print(np.max(im), np.min(im))
-        #import ipdb; ipdb.set_trace()
-
-        cv2.imshow(winName, im.astype('uint8'))
-        print(cnt)
-        key = cv2.waitKey(10)
-        if key&0xff== 'q':
-            break
-        #import ipdb; ipdb.set_trace()
-        '''
+        if time.time()-tic > 3:
+            fps = cnt/(time.time()-tic)
+            print('sonar fps: %0.2f'%fps)
+            tic = time.time()
+            cnt = 0
+        

@@ -77,7 +77,11 @@ streams of sonar packets, and can be opened by `oc_client`.
 after cloning:
 1. cd myOculus/liboculus-main/
 2. ./fips build
-3. To run the oculus client using pipe: 
+(*) if fips build faild on hashable error do the following:
+	go to ../fips/yaml/yaml3/constructor.py
+	on line 126 and change: 
+		"if not isinstance(key, collections.Hashable): to  if not isinstance(key, collections.abc.Hashable)"
+4. To run the oculus client using pipe: 
 	1. create pipe using the following: mkfifo fifo.pipe at the location you want.
 	2. run the oculus client from fips-deploy/liboculus-main/linux-make-debug:
 	./oc_client --help to get to know all the flags:Simple Oculus Sonar app
